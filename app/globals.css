@@ -1,0 +1,194 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  section[id] {
+    scroll-margin-top: 88px;
+  }
+  ::selection {
+    background: #2cc6d3;
+    color: #081c2e;
+  }
+  :focus-visible {
+    outline: 2px solid #2cc6d3;
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-[0.95rem] font-semibold transition-all duration-300;
+  }
+  .btn-aqua {
+    @apply bg-aqua text-ink shadow-[0_14px_40px_-12px_rgba(44,198,211,0.7)] hover:-translate-y-0.5 hover:shadow-[0_18px_50px_-10px_rgba(44,198,211,0.9)];
+  }
+  .btn-outline-pearl {
+    @apply border border-pearl/50 text-pearl hover:border-pearl hover:bg-pearl hover:text-ink;
+  }
+  .btn-ink {
+    @apply bg-ink text-pearl hover:-translate-y-0.5 hover:bg-[#0d2a44];
+  }
+  .btn-outline-ink {
+    @apply border border-ink/20 text-ink hover:border-ink hover:bg-ink hover:text-pearl;
+  }
+  .eyebrow {
+    @apply inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-aqua-dark;
+  }
+  .eyebrow::before {
+    content: "";
+    @apply h-1.5 w-1.5 rounded-full bg-aqua;
+  }
+  .h-section {
+    @apply font-display text-[clamp(2.3rem,5.5vw,4.5rem)] font-semibold leading-[1.02] tracking-tightest text-ink;
+  }
+  .link-underline {
+    background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat;
+    transition: background-size 0.4s cubic-bezier(0.22, 1, 0.36, 1), color 0.3s;
+  }
+  .link-underline:hover {
+    background-size: 100% 1px;
+  }
+  .step-num {
+    color: transparent;
+    -webkit-text-stroke: 1.5px #0b8794;
+  }
+}
+
+/* Loader: ring draws itself, then the seal fades in */
+.loader .badge-ring {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 0.8s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+.loader .badge-logo {
+  opacity: 0;
+  transform: scale(0.8);
+  animation: popIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 0.4s forwards;
+}
+.loader .badge-pulse {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 0.9s cubic-bezier(0.65, 0, 0.35, 1) 0.2s forwards;
+}
+@keyframes draw {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes popIn {
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Scroll hint */
+.scroll-line::after {
+  content: "";
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: #2cc6d3;
+  animation: scrollLine 1.8s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+@keyframes scrollLine {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+/* Live dot */
+.live-dot {
+  position: relative;
+}
+.live-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: inherit;
+  animation: ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+@keyframes ping {
+  75%, 100% { transform: scale(2.6); opacity: 0; }
+}
+
+/* ECG trace for the emergency card */
+.ecg-trace {
+  stroke-dasharray: 0.28 0.72;
+  animation: ecg 2.4s linear infinite;
+}
+@keyframes ecg {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* Marquee */
+.marquee {
+  animation: marquee 38s linear infinite;
+}
+@keyframes marquee {
+  to { transform: translateX(-50%); }
+}
+
+/* Custom cursor */
+html.has-cursor,
+html.has-cursor * {
+  cursor: none !important;
+}
+.cursor-dot,
+.cursor-ring {
+  transition: opacity 0.3s;
+  will-change: transform;
+}
+.cursor-dot span {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 999px;
+  background: #2cc6d3;
+}
+.cursor-ring span {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border-radius: 999px;
+  border: 1px solid rgba(44, 198, 211, 0.75);
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.35s, border-color 0.35s;
+}
+.cursor-ring[data-hover="true"] span {
+  transform: scale(1.9);
+  background: rgba(44, 198, 211, 0.12);
+  border-color: rgba(44, 198, 211, 0.95);
+}
+.cursor-ring[data-view="true"] span {
+  transform: scale(2.6);
+  background: rgba(8, 28, 46, 0.55);
+  border-color: transparent;
+  backdrop-filter: blur(4px);
+}
+.cursor-ring[data-view="true"] span::after {
+  content: "View";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 5px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #fbfdfd;
+}
+
+.cta-glow {
+  background: radial-gradient(circle, rgba(44, 198, 211, 0.22), rgba(44, 198, 211, 0) 60%);
+  filter: blur(10px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
