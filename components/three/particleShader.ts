@@ -1,7 +1,7 @@
 /**
  * One Points cloud, four formations. Every formation is computed on the GPU
  * from per-particle seeds so scroll only has to move a single uniform:
- *   uProgress 0 → a calm field (the town we look after)
+ *   uProgress 0 → dawn over farmland: crop rows, hills, fireflies and a lit road to the sun
  *   uProgress 1 → a live heartbeat trace (24×7 care)
  *   uProgress 2 → a beating heart (child & family care)
  *   uProgress 3 → gathered into the core, which becomes the hospital seal
@@ -17,6 +17,8 @@ export const particleVertex = /* glsl */ `
   uniform vec3 uMouse;
 
   attribute vec4 aSeed;
+  /** 0 crop row, 1 road, 2 distant hill, 3 firefly */
+  attribute float aKind;
 
   varying float vAccent;
   varying float vWarm;
@@ -54,15 +56,28 @@ export const particleVertex = /* glsl */ `
   }
 
   void main() {
-    // 1. Field: slow differential swirl plus a gentle float.
+    // 1. Dawn landscape. Positions come from the CPU; here we only add life.
+    float isRow = 1.0 - step(0.5, aKind);
+    float isRoad = step(0.5, aKind) * (1.0 - step(1.5, aKind));
+    float isHill = step(1.5, aKind) * (1.0 - step(2.5, aKind));
+    float isFly = step(2.5, aKind);
     vec3 g = position;
-    float r = length(g.xy);
-    g.xy = rot(uTime * (0.012 + 0.05 / (1.0 + r * 0.35))) * g.xy;
-    g += 0.18 * vec3(
-      sin(uTime * 0.31 + aSeed.x * 40.0),
-      cos(uTime * 0.27 + aSeed.y * 40.0),
-      sin(uTime * 0.23 + aSeed.z * 40.0)
+    // Wind rolling across the crops, a slower breath on the hills.
+    float gust = sin(g.x * 0.5 - uTime * 1.1 + g.z * 0.35) * 0.5 + 0.5;
+    g.y += (isRow * 0.09 + isHill * 0.02) * gust * sin(uTime * 2.2 + aSeed.x * 20.0);
+    g.x += isRow * 0.06 * gust;
+    // Fireflies drift and bob.
+    g += isFly * vec3(
+      sin(uTime * 0.35 + aSeed.x * 30.0) * 0.45,
+      sin(uTime * 0.6 + aSeed.y * 30.0) * 0.3,
+      cos(uTime * 0.3 + aSeed.z * 30.0) * 0.3
     );
+    // A pulse of light travelling up the road toward the sun.
+    float roadT = clamp((g.z + 22.0) / 27.0, 0.0, 1.0);
+    float roadPulse = isRoad * bump(fract(roadT + uTime * 0.12), 0.5, 0.06);
+    float blink = pow(0.5 + 0.5 * sin(uTime * 1.8 + aSeed.w * 50.0), 4.0);
+    // Distance haze so the horizon melts into the sunrise glow.
+    float haze = mix(1.0, smoothstep(-27.0, -12.0, g.z) * (0.45 + 0.55 * smoothstep(5.0, 2.0, g.z)), isRow + isRoad) * mix(1.0, 0.9, isHill);
 
     // 2. Heartbeat: particles ride a PQRST trace that sweeps left to right.
     float lx = (aSeed.x - 0.5) * uWidth;
@@ -107,13 +122,15 @@ export const particleVertex = /* glsl */ `
     vec4 mv = modelViewMatrix * vec4(pos, 1.0);
     gl_Position = projectionMatrix * mv;
 
-    // Colour: a few are aqua in the field, the pulse head glows, the heart turns logo violet, all aqua at the end.
-    float field = step(aSeed.z, 0.12) * (1.0 - p1);
+    // Colour: road and fireflies aqua, crops faintly green-aqua, hills violet at dawn,
+    // the pulse head glows, the heart turns logo violet, all aqua at the end.
+    float field = (isRoad + isFly + isRow * 0.2 + roadPulse) * (1.0 - p1);
     float pulse = head * p1 * (1.0 - p2);
     vAccent = clamp(max(field, pulse) + step(aSeed.z, 0.35) * p2 + p3, 0.0, 1.0);
-    vWarm = step(0.35, aSeed.z) * step(aSeed.z, 0.75) * p2 * (1.0 - p3);
+    vWarm = max(step(0.35, aSeed.z) * step(aSeed.z, 0.75) * p2, isHill * 0.8 * (1.0 - p1)) * (1.0 - p3);
 
-    float scale = 0.55 + aSeed.w * 1.1;
+    float kindSize = mix(1.0, isRow * 0.55 + isRoad * 0.9 + isHill * 1.3 + isFly * 1.6 + roadPulse * 0.8, 1.0 - p1);
+    float scale = (0.55 + aSeed.w * 1.1) * kindSize;
     float size = uSize * scale * (1.0 + max(vAccent, vWarm) * 0.35 + pulse * 0.6) * (1.0 - p3 * 0.6);
     gl_PointSize = size * uPixelRatio / -mv.z;
 
@@ -121,7 +138,10 @@ export const particleVertex = /* glsl */ `
     // The trace fades toward the ends so it reads as an endless monitor line.
     float edge = mix(1.0, smoothstep(0.5, 0.36, abs(aSeed.x - 0.5)), p1 * (1.0 - p2));
     float absorbed = 1.0 - smoothstep(0.55, 1.0, p3);
-    vAlpha = intro * mix(twinkle, 0.75 + 0.25 * twinkle, p1) * edge * absorbed;
+    float land = mix(1.0, haze * mix(1.0, blink, isFly) * (1.0 + roadPulse), 1.0 - p1);
+    // Crops and hills hold steady; only the field of fireflies and later stages twinkle.
+    float steady = (isRow + isHill + isRoad) * (1.0 - p1);
+    vAlpha = intro * mix(mix(twinkle, 0.75 + 0.25 * twinkle, p1), 0.8 + 0.2 * twinkle, steady) * edge * absorbed * land;
   }
 `;
 

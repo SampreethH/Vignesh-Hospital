@@ -44,16 +44,19 @@ const LAYOUT = {
     ],
     scale: [1, 0.85, 1, 1],
     camY: [0, 0.3, 0.8, 0],
+    lookY: [0, 0, 0, 0],
   },
   narrow: {
     pos: [
-      [0, 2.9],
+      [0, 1.2],
       [0, 1.7],
       [0, 1.55],
       [0, 1.4],
     ],
-    scale: [0.8, 0.48, 0.52, 0.62],
-    camY: [0, 0.3, 0.6, 0],
+    scale: [0.9, 0.48, 0.52, 0.62],
+    camY: [1.2, 0.3, 0.6, 0],
+    // Phones look down over the fields so the sun sits near the top of the screen.
+    lookY: [-1.6, 0, 0, 0],
   },
 };
 
@@ -63,35 +66,64 @@ function sampleKeys(keys: number[], p: number) {
   return THREE.MathUtils.lerp(keys[i], keys[i + 1], t);
 }
 
+/** Rolling ground height: gentle undulation up close, hills rising toward the horizon. */
+function ground(x: number, z: number) {
+  const far = THREE.MathUtils.smoothstep(-z, 4, 22);
+  return -2 + 0.18 * Math.sin(x * 0.45 + z * 0.35) + 0.12 * Math.cos(x * 0.9 - z * 0.2) + far * 1.55 * (0.7 + 0.3 * Math.sin(x * 0.25 + 1.3));
+}
+
+/**
+ * Dawn over the fields around Tumkur: furrowed crop rows receding to the
+ * horizon, a village road winding to the sun (the orb), layered hills and fireflies.
+ */
 function useField(count: number) {
   return useMemo(() => {
     const positions = new Float32Array(count * 3);
     const seeds = new Float32Array(count * 4);
+    const kinds = new Float32Array(count);
     const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
+    const ROWS = 17;
 
     for (let i = 0; i < count; i++) {
-      let x: number, y: number, z: number;
-      if (i % 10 < 7) {
-        // Soft spiral arms facing the camera.
-        const arm = i % 3;
-        const r = Math.pow(Math.random(), 0.75) * 11 + 0.9;
-        const a = (arm / 3) * Math.PI * 2 + r * 0.38 + gauss() * 0.55;
-        x = Math.cos(a) * r + gauss() * 0.5;
-        y = Math.sin(a) * r * 0.62 + gauss() * 0.5;
-        z = gauss() * 2.2 - 1.2;
+      const roll = i % 100;
+      let x: number, y: number, z: number, kind: number;
+      if (roll < 68) {
+        // Crop rows: evenly spaced furrows, perspective does the rest.
+        kind = 0;
+        const row = Math.floor(Math.random() * ROWS);
+        // Rows bunch up toward the horizon, like looking across a real field.
+        z = 4 - Math.pow(row / ROWS, 1.35) * 26 + gauss() * 0.015;
+        // Same particle count per row across the visible width, so every furrow reads as a line.
+        x = -1.5 + (Math.random() - 0.5) * ((10 - z) * 1.5 + 6);
+        y = ground(x, z) + gauss() * 0.01;
+      } else if (roll < 80) {
+        // The road: winds side to side, narrowing into the sun.
+        kind = 1;
+        // Starts wide at the bottom-left of the scene and narrows into the sun.
+        z = 5 - Math.pow(Math.random(), 0.7) * 27;
+        const toward = (z + 22) / 27;
+        x = (-2.6 + Math.sin(z * 0.32) * 0.9) * Math.pow(toward, 1.3) + gauss() * (0.02 + 0.16 * toward);
+        y = ground(x, z) + 0.04;
+      } else if (roll < 93) {
+        // Three hill ridges, densest along the skyline.
+        kind = 2;
+        const k = Math.floor(Math.random() * 3);
+        z = -14 - k * 4;
+        x = (Math.random() - 0.5) * 60;
+        const ridge = -0.15 + 0.6 * Math.sin(x * 0.2 + k * 1.7) + 0.3 * Math.sin(x * 0.55 + k * 2.9) + k * 0.35;
+        y = ridge - (Math.random() < 0.7 ? gauss() * 0.02 : Math.random() * 1.2);
       } else {
-        // Loose outer halo for depth.
-        const r = 5 + Math.random() * 10;
-        const th = Math.random() * Math.PI * 2;
-        const ph = Math.acos(2 * Math.random() - 1);
-        x = r * Math.sin(ph) * Math.cos(th);
-        y = r * Math.sin(ph) * Math.sin(th) * 0.7;
-        z = r * Math.cos(ph) * 0.5 - 3;
+        // Fireflies over the nearer fields.
+        kind = 3;
+        x = (Math.random() - 0.5) * 16;
+        z = 3 - Math.random() * 10;
+        y = ground(x, z) + 0.3 + Math.random() * 1.4;
       }
       positions.set([x, y, z], i * 3);
       seeds.set([Math.random(), Math.random(), Math.random(), Math.random()], i * 4);
+      kinds[i] = kind;
     }
-    return { positions, seeds };
+    return { positions, seeds, kinds };
   }, [count]);
 }
 
@@ -132,7 +164,7 @@ function Story({ bloom, count }: { bloom: boolean; count: number }) {
   const orb = useRef<THREE.Group>(null!);
   const glow = useRef<THREE.Mesh>(null!);
 
-  const { positions, seeds } = useField(count);
+  const { positions, seeds, kinds } = useField(count);
   const narrow = size.width < 768;
 
   const particleMat = useMemo(
@@ -228,7 +260,7 @@ function Story({ bloom, count }: { bloom: boolean; count: number }) {
     const camY = sampleKeys(layout.camY, p);
     camera.position.x = THREE.MathUtils.lerp(camera.position.x, tmp.smooth.x * 0.9, k);
     camera.position.y = THREE.MathUtils.lerp(camera.position.y, camY + tmp.smooth.y * 0.6, k);
-    camera.lookAt(0, 0, 0);
+    camera.lookAt(0, sampleKeys(layout.lookY, p), 0);
 
     const u = particleMat.uniforms;
     if (story.pointerActive && !narrow) {
@@ -257,7 +289,8 @@ function Story({ bloom, count }: { bloom: boolean; count: number }) {
     const pulse = 1 + Math.sin(t * 2.2) * 0.07 * (1 - minted);
     const grow = (1 - trace * 0.75) * (1 + absorb * 1.1);
     orb.current.scale.setScalar(Math.max(0.0001, THREE.MathUtils.lerp(grow, 0.0001, minted) * pulse * (0.3 + 0.7 * story.intro)));
-    glow.current.scale.setScalar((1 - trace * 0.6) * THREE.MathUtils.lerp(1, 1.9, minted) * (1 + flash * 0.8));
+    const sunrise = 1 - smooth(0.1, 0.8, p);
+    glow.current.scale.setScalar((1 - trace * 0.6) * (1 + sunrise * 0.9) * THREE.MathUtils.lerp(1, 1.9, minted) * (1 + flash * 0.8));
     glow.current.position.z = -0.4 * minted;
     glowMat.uniforms.uOpacity.value = (0.75 + flash * 0.9 + Math.sin(t * 2.2) * 0.1) * story.intro * (1 - minted * 0.45);
 
@@ -278,6 +311,7 @@ function Story({ bloom, count }: { bloom: boolean; count: number }) {
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" args={[positions, 3]} />
           <bufferAttribute attach="attributes-aSeed" args={[seeds, 4]} />
+          <bufferAttribute attach="attributes-aKind" args={[kinds, 1]} />
         </bufferGeometry>
       </points>
 
@@ -312,7 +346,7 @@ export default function Scene() {
     if (typeof window === "undefined") return { bloom: false, count: 6000 };
     const small = window.innerWidth < 768;
     const coarse = window.matchMedia("(pointer: coarse)").matches;
-    return { bloom: !small && !coarse, count: small ? 4000 : 6500 };
+    return { bloom: !small && !coarse, count: small ? 9000 : 16000 };
   });
 
   useEffect(() => onCanvasActive(setActive), []);

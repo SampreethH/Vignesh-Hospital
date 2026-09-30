@@ -126,7 +126,9 @@ export default function StoryHero() {
     <section id="top" ref={root} className="relative z-10 h-[100svh] overflow-hidden text-pearl">
       {/* HERO */}
       <div className="absolute inset-0 flex items-end md:items-center">
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[70%] bg-gradient-to-t from-ink via-ink/85 to-transparent md:hidden" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[58%] bg-gradient-to-t from-ink via-ink/75 to-transparent md:hidden" />
+        {/* Keeps the copy readable over the fields on wide screens. */}
+        <div data-hero-item className="pointer-events-none absolute inset-y-0 left-0 hidden w-[62%] bg-gradient-to-r from-ink/85 via-ink/55 to-transparent md:block" />
         <div className="relative mx-auto w-full max-w-7xl px-5 pb-28 md:px-10 md:pb-0">
           <div className="max-w-2xl">
             <div data-hero-item>
